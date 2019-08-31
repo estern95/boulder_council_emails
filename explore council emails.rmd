@@ -78,6 +78,7 @@ data_clean <-
               select(-removal_reason)) %>% 
   # create some flag variables
   mutate(IsMasked = ifelse(str_detect(SentFrom, "\\[*\\]"), T, F),
+         IsReply  = ifelse(str_detect(EmailSubject, "^R[E,e]:"), T, F),
          FromCCM  = ifelse(str_detect(SentFrom, 
                                       pattern = str_c(city_council_members, collapse = "|")),
                            T,
@@ -134,12 +135,14 @@ frequency_email %>%
  format_table()
 ```
 
-As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)` (You go `r pluck(frequency_email, "SentFrom", 1)`!)
+As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)`.
 
 ## Dates of Emails
 
 ```{r}
 data_clean %>% 
+  count(ReceivedDate) %>% 
+  plot_ly(x = ~ReceivedDate, y = ~n, type = 'scatter', mode = 'lines')
   
 ```
 
