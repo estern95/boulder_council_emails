@@ -1,0 +1,101 @@
+---
+title: "What do Boulderites Care About?"
+subtitle: "An Exploratory Analysis into City Council Emails"
+author: "Eric Stern"
+date: "8/31/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(plotly)
+library(DT)
+
+# functions
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+format_table <- function(data) {
+  data %>% 
+    rename_all(~str_to_title(.) %>% 
+                 str_replace_all("_", " ") %>% 
+                 str_wrap(width = 30)) %>% 
+    knitr::kable()
+}
+```
+
+# About the Data
+This is data that the city of Boulder keeps open to the public. They maintain ~30 datasets for various different areas of interest such as crime, homelessness, and city affairs. This analysis is leveraging the dataset, [2019 Council Emails Dataset](https://bouldercolorado.gov/open-data/emails-to-boulder-city-council/):
+
+>Dataset containing 2019 emails to council@bouldercolorado.gov. This version works best for viewing in Excel, as it includes only the plain text version of the emails. This file is updated daily with new emails.
+
+```{r}
+raw_data <- read_csv("http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2019.csv")
+
+# raw_data %>% 
+#   datatable()
+```
+
+# Understanding the Data
+This dataset has the following columns : `r names(raw_data)`. They are relatively self explanatory. One item to note is that all emails included in this data set are sent to council@bouldercolorado.gov. They may also be sent to others such as boulderplanningboard or specific city council members.
+
+# Data Cleaning
+These data are a little messy. Not bad in the grand scheme of data messsiness but we need to remove some junk if we want anyg reasonable results. I have created a table of what I removed and why:
+```{r}
+removed <- list()
+removed$no_reply <- raw_data %>% 
+  filter(SentFrom == "No Reply") # these are spam
+
+removed_rows <- bind_rows(removed, .id = "removal_reason")
+
+data_clean <- raw_data %>% 
+  anti_join(removed_rows %>% 
+              select(-removal_reason))
+
+
+removed_rows %>% 
+  group_by(removal_reason) %>% 
+  summarise(n_rows_removed = n()) %>% 
+  ungroup() %>% 
+  format_table()
+```
+
+
+## Metadata 
+The meat of this dataset is the plain email text body. We'll get to that later. First, let's look at the meta data about whose sending the emails and when they are sending them.
+
+### Senders
+My hypothesis is that there aren't too many unique senders. Unfortunatly public engagement is low in general. As expected, we see a small handful having set the majority of emails.
+```{r}
+frequency_email <- data_clean %>% 
+  count(SentFrom) %>% 
+  arrange(desc(n)) %>% 
+  mutate(SentFrom = as_factor(SentFrom)) 
+
+frequency_email %>% 
+  plot_ly(x = ~SentFrom, y = ~n, type = "bar")
+```
+
+If we look at some desciptive statistics about whose sending emails and their frequency, we get the following:
+```{r}
+
+
+frequency_email %>% 
+  summarise(total_observations = sum(n),
+            mean   = mean(n),
+            median = median(n),
+            mode   = getmode(n),
+            max    = max(n),
+            min    = min(n)) %>% 
+ format_table()
+```
+
+As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)` (You go `r pluck(frequency_email, "SentFrom", 1)`!)
+
+## Dates of Emails
+
+## Email Duplicates
