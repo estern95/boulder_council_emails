@@ -146,5 +146,53 @@ data_clean %>%
   
 ```
 
+## Coucil and City Officials Engagement
+Based on reply signs in the email subject, we can also see how engaged the council or city officials are with constituents:
+
+```{r}
+data_clean %>% 
+  count(IsReply) %>% 
+  filter(!is.na(IsReply)) %>% 
+  mutate(IsReply = ifelse(IsReply, "Response Email", "Original Email")) %>% 
+  plot_ly(x = ~IsReply, y = ~n, type = "bar")
+```
+
+This is a bit low, I would expect more engagement since most emails are relatively unique and not campaigns by interest groups. Let's see what types of trends we can find based on when city officials reply.
 
 ## Email Duplicates
+People frequently copy paste an email in order to show more public awareness to an issue. We are checking by email subject for now. As expected, there are some movements in Boulder that coordinate the efforts through this email channel.
+```{r}
+
+data_clean %>% 
+  filter(!IsReply) %>% 
+  count(EmailSubject) %>% 
+  arrange(desc(n)) %>% 
+  mutate(EmailSubject = as_factor(EmailSubject)) %>% 
+  plot_ly(x = ~EmailSubject, y = ~n, type = "bar")
+
+```
+
+We are starting to see some trends here. This is not conclusive, but gives us a good starting point for further analysis. There are a couple of notable trends. Mostly surounding Boulder's Open Space Mountain Parks, Bike Trails, Vaping, Homeless Shelters, and 5g:
+```{r}
+data_clean %>% 
+  filter(!IsReply) %>% 
+  count(EmailSubject) %>% 
+  arrange(desc(n)) %>% 
+  head(10) %>% 
+  format_table()
+```
+
+This is a good start. Let's first bin the emails into categories by extracting common phrases
+
+# Data Analysis
+
+## Open Space
+
+## Bike Trails
+
+## Vaping
+
+## Boulder Homeless Shelter
+
+## 5G Network
+
