@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lubridate)
 library(tidytext)
+library(wordcloud)
 library(plotly)
 library(DT)
 
@@ -183,6 +184,32 @@ data_clean %>%
 ```
 
 This is a good start. Let's first bin the emails into categories by extracting common phrases
+
+## Find most commons words and phrases
+```{r}
+tidy_text <- data_clean %>% 
+  unnest_tokens(word, EmailSubject) %>% 
+  anti_join(stop_words, by = "word")
+  
+
+tidy_text %>% 
+  count(word) %>% 
+  filter(!(word %in% c("boulder", "council", "city", 'fw', "fwd", 2019))) %>% # remove some meaningless words
+  with(wordcloud(word, n, max.words = 50))
+
+
+tidy_phrases <- 
+  data_clean %>% 
+  unnest_tokens(word, PlainTextBody, token = "ngrams", n = 2) %>% 
+  separate(word, into = c("w_1", "w_2"), remove = F) %>% 
+  anti_join(stop_words, by = c("w_1" = "word")) %>% 
+  anti_join(stop_words, by = c("w_2" = "word")) %>% 
+  count(word) %>% 
+  arrange(desc(n))
+
+tidy_phrases
+```
+
 
 # Data Analysis
 
