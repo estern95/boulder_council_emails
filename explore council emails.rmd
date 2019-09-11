@@ -92,6 +92,8 @@ data_clean <-
                              pattern =  str_c(city_officials, collapse = "|")),
                            T,
                            F)) %>% 
+  # format strings
+  mutate_at(vars(EmailSubject), str_to_lower) %>% 
   mutate(ReceivedDate = as_date(ReceivedDate)) 
   
 
@@ -139,7 +141,7 @@ frequency_email %>%
 As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)`.
 
 ## Dates of Emails
-
+Looking at the dates that emails get sent, it appears that there are outside triggers that incent people to send emails to the city council on certain days. Without looking at the calandar for city council sessions, it is a good guess that the days with the most email traffic are days prior and post city council sessions.
 ```{r}
 data_clean %>% 
   count(ReceivedDate) %>% 
