@@ -171,13 +171,14 @@ As there are a lot of people in the CC line of these emails, we can also see wha
 
 ```{r}
   data_clean %>% 
-  select(SentFrom, SentTo) %>% 
+  select(SentFrom, SentTo, ToCCM) %>% 
   separate_rows(SentTo, sep = ",") %>% 
   filter(str_detect(SentTo, "\\[.*\\]")) %>% 
   mutate(SentTo = str_trim(SentTo, side = "both")) %>% 
   as_tbl_graph() %>% 
-  ggraph() +
-  geom_edge_link() 
+  ggraph(layout = 'kk') +
+  geom_edge_link(aes(color = ToCCM)) + 
+  geom_node_point()
 ```
 
 ## Email Duplicates
