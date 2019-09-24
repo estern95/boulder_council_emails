@@ -9,6 +9,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(tidygraph)
+library(ggraph)
 library(lubridate)
 library(tidytext)
 library(wordcloud)
@@ -36,7 +38,8 @@ This is data that the city of Boulder keeps open to the public. They maintain ~3
 >Data set containing 2019 emails to council@bouldercolorado.gov. This version works best for viewing in Excel, as it includes only the plain text version of the emails. This file is updated daily with new emails.
 
 ```{r}
-raw_data <- read_csv("http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2019.csv")
+raw_data <- 
+  read_csv("http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2019.csv")
 
 # raw_data %>% 
 #   datatable()
@@ -110,7 +113,7 @@ removed_rows %>%
 The meat of this data set is the plain email text body. We'll get to that later. First, let's look at the meta data about whose sending the emails and when they are sending them.
 
 ### Senders
-My hypothesis is that there aren't too many unique senders. Unfortunately public engagement is low in general. As expected, we see a small handful having set the majority of emails.
+My hypothesis is that there aren't too many unique senders. Unfortunately public engagement is low in general. As expected, we see a small handful having set the majority of emails. As a note, the largest corresponder is the spokeperson for the Boulder police department.
 ```{r}
 frequency_email <- data_clean %>% 
   count(SentFrom, FromCCM, FromCO) %>% 
@@ -162,8 +165,23 @@ data_clean %>%
 
 This is a bit low, I would expect more engagement since most emails are relatively unique and not campaigns by interest groups. Let's see what types of trends we can find based on when city officials reply.
 
+## Network Effects
+
+As there are a lot of people in the CC line of these emails, we can also see what the network looks like using some graph theory.
+
+```{r}
+  data_clean %>% 
+  select(SentFrom, SentTo) %>% 
+  separate_rows(SentTo, sep = ",") %>% 
+  filter(str_detect(SentTo, "\\[.*\\]")) %>% 
+  mutate(SentTo = str_trim(SentTo, side = "both")) %>% 
+  as_tbl_graph() %>% 
+  ggraph() +
+  geom_edge_link() 
+```
+
 ## Email Duplicates
-People frequently copy paste an email in order to show more public awareness to an issue. We are checking by email subject for now. As expected, there are some movements in Boulder that coordinate the efforts through this email channel.
+People frequently copy paste an email in order to show more public awareness to an issue. We are checking by email subject for now. As expected, there are some movements in Boulder that coordinate the efforts through this email channel. Since people tend to sign their own name, we took the email subject to look for duplicates. This isn't perfect but does a good job at clearing out the vast majority.
 ```{r}
 
 data_clean %>% 
