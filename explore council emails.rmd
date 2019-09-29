@@ -170,7 +170,7 @@ This is a bit low, I would expect more engagement since most emails are relative
 As there are a lot of people in the CC line of these emails, we can also see what the network looks like using some graph theory.
 
 ```{r}
-  data_clean %>% 
+data_clean %>% 
   mutate(VIPs = case_when(ToCCM ~ "City Council Member",
                           FromCCM ~ "City Council Member",
                           FromCO ~ "City Official",
@@ -180,7 +180,7 @@ As there are a lot of people in the CC line of these emails, we can also see wha
   filter(str_detect(SentTo, "\\[.*\\]")) %>% 
   mutate(SentTo = str_trim(SentTo, side = "both")) %>% 
   as_tbl_graph() %>% 
-  ggraph(layout = 'dh') +
+  ggraph(layout = 'kk') +
   geom_edge_link(aes(color = VIPs)) + 
   geom_node_point()
 ```
