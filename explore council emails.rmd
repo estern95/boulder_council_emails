@@ -14,8 +14,13 @@ library(ggraph)
 library(lubridate)
 library(tidytext)
 library(wordcloud)
+library(topicmodels)
 library(plotly)
 library(DT)
+library(kableExtra) #create attractive tables
+library(ggrepel) #text and label geoms for ggplot2
+library(gridExtra)
+library(formattable)
 
 # functions
 getmode <- function(v) {
@@ -29,6 +34,32 @@ format_table <- function(data) {
                  str_replace_all("_", " ") %>% 
                  str_wrap(width = 30)) %>% 
     knitr::kable()
+}
+
+
+word_chart <- function(data, input, title) {
+  data %>%
+  #set y = 1 to just plot one variable and use word as the label
+  ggplot(aes(as.factor(row), 1, label = input, fill = factor(topic) )) +
+  #you want the words, not the points
+  geom_point(color = "transparent") +
+  #make sure the labels don't overlap
+  geom_label_repel(nudge_x = .2,  
+                   direction = "y",
+                   box.padding = 0.1,
+                   segment.color = "transparent",
+                   size = 3) +
+  facet_grid(~topic) +
+    theme_dark() +
+    theme(axis.text.y = element_blank(), axis.text.x = element_blank(),
+          #axis.title.x = element_text(size = 9),
+          panel.grid = element_blank(), panel.background = element_blank(),
+          panel.border = element_rect("lightgray", fill = NA),
+          strip.text.x = element_text(size = 9)) +
+    labs(x = NULL, y = NULL, title = title) +
+    #xlab(NULL) + ylab(NULL) +
+  #ggtitle(title) +
+  coord_flip()
 }
 ```
 
@@ -170,19 +201,16 @@ This is a bit low, I would expect more engagement since most emails are relative
 As there are a lot of people in the CC line of these emails, we can also see what the network looks like using some graph theory.
 
 ```{r}
-data_clean %>% 
-  mutate(VIPs = case_when(ToCCM ~ "City Council Member",
-                          FromCCM ~ "City Council Member",
-                          FromCO ~ "City Official",
-                          SentTo == "Council" ~ "Offical Council Email Address")) %>% 
-  select(SentFrom, SentTo, VIPs) %>% 
+  data_clean %>% 
+  select(SentFrom, SentTo) %>% 
   separate_rows(SentTo, sep = ",") %>% 
   filter(str_detect(SentTo, "\\[.*\\]")) %>% 
   mutate(SentTo = str_trim(SentTo, side = "both")) %>% 
   as_tbl_graph() %>% 
   ggraph(layout = 'kk') +
-  geom_edge_link(aes(color = VIPs)) + 
-  geom_node_point()
+  geom_edge_link() +
+  geom_node_point() +
+  theme_light()
 ```
 
 ## Email Duplicates
@@ -237,6 +265,58 @@ tidy_phrases
 
 
 # Data Analysis
+```{r}
+non_topics <- c("tinyurl.com", "http", "dear", "city", "boulder", "council", "2", "2017", "2018", "2019")
+
+# create DTM with the cleaned data
+clean_dtm <- data_clean %>% 
+  unnest_tokens(output = tokenized_emails,
+                input  = PlainTextBody) %>% 
+  anti_join(stop_words, by = c("tokenized_emails" = "word")) %>% 
+  filter(!tokenized_emails %in% non_topics) %>% 
+  count(MessageIdentifier, tokenized_emails, sort = T) %>% 
+  cast_dtm(term = tokenized_emails, document = MessageIdentifier, value = n)
+
+
+k <- 5 #number of topics
+seed = 1234 #necessary for reproducibility
+#fit the model passing the parameters discussed above
+#you could have more control parameters but will just use seed here
+lda <- LDA(clean_dtm, 
+           k = k, 
+           method = "GIBBS", 
+           control = list(seed = seed))
+
+
+
+num_words <- 10 #number of words to visualize
+
+#create function that accepts the lda model and num word to display
+top_terms_per_topic <- function(lda_model, num_words) {
+
+  #tidy LDA object to get word, topic, and probability (beta)
+  topics_tidy <- tidy(lda_model, matrix = "beta")
+
+
+  top_terms <- topics_tidy %>%
+  group_by(topic) %>%
+  arrange(topic, desc(beta)) %>%
+  #get the top num_words PER topic
+  slice(seq_len(num_words)) %>%
+  arrange(topic, beta) %>%
+  #row is required for the word_chart() function
+  mutate(row = row_number()) %>%
+  ungroup() %>%
+  #add the word Topic to the topic labels
+  mutate(topic = paste("Topic", topic, sep = " "))
+  #create a title to pass to word_chart
+  title <- paste("LDA Top Terms for", k, "Topics")
+  #call the word_chart function you built in prep work
+  word_chart(top_terms, top_terms$term, title)
+}
+#
+top_terms_per_topic(lda, num_words)
+```
 
 ## Open Space
 
