@@ -266,7 +266,7 @@ tidy_phrases
 
 # Data Analysis
 ```{r}
-non_topics <- c("tinyurl.com", "http", "https", "dear", "city", "boulder", "council", "2", "2017", "2018", "2019")
+non_topics <- c("tinyurl.com", "http", "https", "email", "community", "dear", "city", "boulder", "council", "2", "2017", "2018", "2019")
 
 # create DTM with the cleaned data
 clean_dtm <- data_clean %>% 
