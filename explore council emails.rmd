@@ -161,7 +161,6 @@ frequency_email %>%
 If we look at some descriptive statistics about whose sending emails and their frequency, we get the following:
 ```{r}
 
-
 frequency_email %>% 
   summarise(total_observations = sum(n),
             mean   = mean(n),
@@ -207,13 +206,17 @@ As there are a lot of people in the CC line of these emails, we can also see wha
   filter(str_detect(SentTo, "\\[.*\\]")) %>% 
   mutate(SentTo = str_trim(SentTo, side = "both")) %>% 
   as_tbl_graph() %>% 
-  ggraph(layout = 'kk') +
+  ggraph(
+    layout = 'stress'
+    ) +
   geom_edge_link() +
-  geom_node_point() +
-  theme_light()
+  geom_node_point() 
 ```
 
+This is interesting. I appears that there are many non-overlapping cliques. We have one major network and then many small disconnected graphs.
+
 ## Email Duplicates
+
 People frequently copy paste an email in order to show more public awareness to an issue. We are checking by email subject for now. As expected, there are some movements in Boulder that coordinate the efforts through this email channel. Since people tend to sign their own name, we took the email subject to look for duplicates. This isn't perfect but does a good job at clearing out the vast majority.
 ```{r}
 
@@ -239,6 +242,7 @@ data_clean %>%
 This is a good start. Let's first bin the emails into categories by extracting common phrases
 
 ## Find most commons words and phrases
+
 ```{r}
 tidy_text <- data_clean %>% 
   unnest_tokens(word, EmailSubject) %>% 
@@ -265,6 +269,7 @@ tidy_phrases
 
 
 # Data Analysis
+
 ```{r}
 non_topics <- c("tinyurl.com", "http", "https", "email", "community", "dear", "city", "boulder", "council", "2", "2017", "2018", "2019")
 
@@ -278,7 +283,7 @@ clean_dtm <- data_clean %>%
   cast_dtm(term = tokenized_emails, document = MessageIdentifier, value = n)
 
 
-k <- 5 #number of topics
+k <- 4 #number of topics
 seed = 1234 #necessary for reproducibility
 #fit the model passing the parameters discussed above
 #you could have more control parameters but will just use seed here
@@ -289,7 +294,7 @@ lda <- LDA(clean_dtm,
 
 
 
-num_words <- 10 #number of words to visualize
+num_words <- 5 #number of words to visualize
 
 #create function that accepts the lda model and num word to display
 top_terms_per_topic <- function(lda_model, num_words) {
