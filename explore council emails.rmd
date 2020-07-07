@@ -155,7 +155,7 @@ removed_rows %>%
 The meat of this data set is the plain email text body. We'll get to that later. First, let's look at the meta data about whose sending the emails and when they are sending them.
 
 ### Senders
-My hypothesis is that there aren't too many unique senders. Unfortunately public engagement is low in general. As expected, we see a small handful having set the majority of emails. As a note, the largest corresponder is the spokeperson for the Boulder police department.
+My hypothesis is that there aren't too many unique senders. Unfortunately public engagement is low in general. As expected, we see a small handful having set the majority of emails. As a note, the largest correspondent is the spokesperson for the Boulder police department.
 ```{r}
 frequency_email <- data_clean %>% 
   count(SentFrom, FromCCM, FromCO) %>% 
@@ -186,7 +186,7 @@ frequency_email %>%
 As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)`.
 
 ## Dates of Emails
-Looking at the dates that emails get sent, it appears that there are outside triggers that incentive people to send emails to the city council on certain days. Without looking at the calandar for city council sessions, it is a good guess that the days with the most email traffic are days prior and post city council sessions.
+Looking at the dates that emails get sent, it appears that there are outside triggers that incentive people to send emails to the city council on certain days. Without looking at the calendar for city council sessions, it is a good guess that the days with the most email traffic are days prior and post city council sessions.
 
 *edit* Since initially performing this analysis, the COVID-19 Pandemic has swept the globe and thrown data project everywhere, this included, into disarray. It is somewhat apparent that engagement has increased in a large way.
 
@@ -197,7 +197,7 @@ data_clean %>%
   
 ```
 
-## Coucil and City Officials Engagement
+## Council and City Officials Engagement
 Based on reply signs in the email subject, we can also see how engaged the council or city officials are with constituents:
 
 ```{r}
@@ -214,7 +214,7 @@ This is a bit low, I would expect more engagement since most emails are relative
 
 People frequently copy paste an email in order to show more public awareness to an issue. We are checking by email subject for now. As expected, there are some movements in Boulder that coordinate the efforts through this email channel. Since people tend to sign their own name, we took the email subject to look for duplicates. This isn't perfect but does a good job at clearing out the vast majority.
 
-*Edit* Since performing this analysis, the largest movement towards racial equaility has begun. This significantly changes my initial findings.
+*Edit* Since performing this analysis, the largest movement towards racial equality has begun. This significantly changes my initial findings.
 
 ```{r}
 
@@ -227,7 +227,7 @@ data_clean %>%
 
 ```
 
-We are starting to see some trends here. This is not conclusive, but gives us a good starting point for further analysis. There are a couple of notable trends. Mostly surounding Boulder's Open Space Mountain Parks, Bike Trails, Vaping, Homeless Shelters, 5g, and very notably, Police Accountability:
+We are starting to see some trends here. This is not conclusive, but gives us a good starting point for further analysis. There are a couple of notable trends. Mostly surrounding Boulder's Open Space Mountain Parks, Bike Trails, Vaping, Homeless Shelters, 5g, and very notably, Police Accountability:
 
 ```{r}
 data_clean %>% 
@@ -266,15 +266,21 @@ tidy_phrases
 ```
 
 
-# Data Analysis
+# Text Analysis
+
+For this iteration, we are using a simple "bag of words" approach using Latent Derichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods but does not conflate location in a string with significance. 
+
 ```{r}
 
 
 # create DTM with the cleaned data
 clean_dfm <- data_clean %>% 
+  sample_n(400) %>% 
   corpus(docid_field = 'MessageIdentifier',
          text_field = 'PlainTextBody') %>% 
-  dfm(remove_punct = TRUE, remove = stopwords('en')) %>% 
+  dfm(tolower = TRUE, 
+      remove_punct = TRUE, remove_symbols = TRUE, remove_numbers = TRUE, 
+      remove = stopwords('en')) %>% 
   dfm_trim(min_termfreq = 0.95, termfreq_type = "quantile", 
            max_docfreq = 0.1, docfreq_type = "prop") %>% 
   convert(to = "topicmodels")
@@ -320,4 +326,34 @@ top_terms_per_topic <- function(lda_model, num_words) {
 top_terms_per_topic(lda, num_words)
 ```
 
+# Assign topic to each email
+
+```{r}
+topic_designation <- 
+  topics(lda) %>% 
+  tibble(id = names(.),
+         topic = .)
+
+emails_topics <- data_clean %>% 
+  left_join(topic_designation, by = c('MessageIdentifier' = 'id'))
+```
+
+# Plot topics overtime
+
+With the unrest in 2020, it is likely that topics were assigned with temporal correlation. The plot below showcases the topics over time.
+
+```{r}
+emails_topics %>% 
+  mutate(topic = paste("Topic", 
+                       topic)) %>% 
+  ggplot() +
+  aes(x = ReceivedDate,
+      fill = topic) +
+  geom_density(alpha = .5)
+```
+
+```{r}
+write_rds(emails_topics,
+          'local_politics/clustered_assignments.rds')
+```
 
