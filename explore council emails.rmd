@@ -57,10 +57,7 @@ word_chart <- function(data, input, title) {
           panel.grid = element_blank(), panel.background = element_blank(),
           panel.border = element_rect("lightgray", fill = NA),
           strip.text.x = element_text(size = 9)) +
-    labs(x = NULL, y = NULL, title = title) +
-    #xlab(NULL) + ylab(NULL) +
-  #ggtitle(title) +
-  coord_flip()
+    labs(x = NULL, y = NULL, title = title) 
 }
 ```
 
@@ -355,5 +352,8 @@ emails_topics %>%
 ```{r}
 write_rds(emails_topics,
           'local_politics/clustered_assignments.rds')
+
+write_rds(lda,
+          'local_politics/topic_model.rds')
 ```
 
