@@ -2,7 +2,7 @@
 title: "What do Boulderites Care About?"
 subtitle: "An Exploratory Analysis into City Council Emails"
 author: "Eric Stern"
-date: "8/31/2019"
+date: "7/7/2020"
 output: html_document
 ---
 
@@ -246,7 +246,7 @@ tidy_text <- data_clean %>%
 
 tidy_text %>% 
   count(word) %>% 
-  filter(!(word %in% c("boulder", "council", "city", 'fw', "fwd", 2019))) %>% # remove some meaningless words
+  filter(!(word %in% c("boulder", "council", "city", 'fw', "fwd", '2019'))) %>% # remove some meaningless words
   with(wordcloud(word, n, max.words = 50))
 
 
@@ -272,7 +272,6 @@ For this iteration, we are using a simple "bag of words" approach using Latent D
 
 # create DTM with the cleaned data
 clean_dfm <- data_clean %>% 
-  sample_n(400) %>% 
   corpus(docid_field = 'MessageIdentifier',
          text_field = 'PlainTextBody') %>% 
   dfm(tolower = TRUE, 

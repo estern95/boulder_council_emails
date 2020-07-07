@@ -57,7 +57,7 @@ top_terms_per_topic <- function(lda_model, num_words) {
         mutate(row = row_number()) %>%
         ungroup() %>%
         #add the word Topic to the topic labels
-        mutate(topic = paste("Topic", topic, sep = " "))
+        mutate(topic = paste("Topic", topic-1, sep = " "))
     #create a title to pass to word_chart
     title <- paste("LDA Top Terms")
     #call the word_chart function you built in prep work
@@ -65,7 +65,9 @@ top_terms_per_topic <- function(lda_model, num_words) {
 }
 
 # cleaned in an ETL script - TODO move the ETL into a chron job on cloud
-in_dat <- readRDS('clustered_assignments.rds')
+in_dat <- readRDS('clustered_assignments.rds') %>% 
+    mutate(topic = paste("Topic", 
+                         topic-1)) 
 topic_model <- readRDS('topic_model.rds')
 
 # experiimentation --------
@@ -91,7 +93,11 @@ ui <- fluidPage(
         tabPanel('Dashboard',
                  fluidRow(
                      sidebarLayout(
-                         sidebarPanel(plotOutput('topic_words')),
+                         sidebarPanel(
+                             selectizeInput('topics_filter', 'Choose Topic/s',
+                                            choices = unique(in_dat$topic),
+                                            multiple = FALSE),
+                             plotlyOutput('topic_words')),
                          mainPanel(plotlyOutput('ts_density'))
                      ),
                      dataTableOutput('mailbox'),
@@ -106,29 +112,53 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
 
-    output$topic_words = renderPlot({
-        top_terms_per_topic(topic_model, num_words = 10)
+    inDat = reactive({
+        in_dat %>% filter(topic %in% input$topics_filter)
+    })
+    
+    output$topic_words = renderPlotly({
+        tmp <- topic_model %>% 
+            tidy('beta') %>% 
+            mutate(topic = paste("Topic", topic-1)) %>% 
+            filter(topic %in% input$topics_filter) %>% 
+            arrange(desc(beta)) %>% 
+            head(10) %>% 
+            ggplot() +
+            aes(x = term,
+                y = beta) +
+            geom_bar(stat = 'identity',
+                     fill = 'blue') +
+            coord_flip()
+        
+        ggplotly(tmp) %>% 
+            layout(paper_bgcolor = rgb(0,0,0,0),
+                   plot_bgcolor =  rgb(0,0,0,0))
     })
     
     output$ts_density = renderPlotly({
-        tmp <- in_dat %>% 
-            mutate(topic = paste("Topic", 
-                                 topic-1)) %>% 
+        tmp <- inDat() %>% 
             ggplot() +
-            aes(x = ReceivedDate,
-                fill = topic) +
-            geom_density(alpha = .5)
+            aes(x = ReceivedDate) +
+            geom_density(alpha = .5,
+                         fill = 'blue')
         
-        ggplotly(tmp)   
+        ggplotly(tmp) %>% 
+            layout(paper_bgcolor = rgb(0,0,0,0),
+                   plot_bgcolor =  rgb(0,0,0,0))
     }
     )
     
     output$mailbox = renderDataTable({
-        in_dat %>% select(SentTo, SentCC, ReceivedDate, EmailSubject) %>% 
-            datatable(selection = 'single')
+        inDat() %>% 
+            select(Topic = topic, SentTo, SentCC, ReceivedDate, EmailSubject) %>% 
+            datatable(selection = 'single') %>% 
+            formatStyle(
+                columns = c(1:4),
+                target = 'row',
+                backgroundColor = rgb(0,0,0,0))
     })
     
-    selectedEmail = reactive(in_dat[input$mailbox_rows_selected, ])
+    selectedEmail = reactive(inDat()[input$mailbox_rows_selected, ])
     
     output$email = renderUI(
         div(
