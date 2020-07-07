@@ -6,7 +6,7 @@ date: "8/31/2019"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidygraph)
@@ -15,6 +15,7 @@ library(lubridate)
 library(tidytext)
 library(wordcloud)
 library(topicmodels)
+library(quanteda)
 library(plotly)
 library(DT)
 library(kableExtra) #create attractive tables
@@ -69,11 +70,19 @@ This is data that the city of Boulder keeps open to the public. They maintain ~3
 >Data set containing 2019 emails to council@bouldercolorado.gov. This version works best for viewing in Excel, as it includes only the plain text version of the emails. This file is updated daily with new emails.
 
 ```{r}
-raw_data <- 
-  read_csv("http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2019.csv")
+raw_data2019 <- 
+  read_csv(
+    "http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2019.csv",
+    col_types = cols(.default = col_character()))
 
-# raw_data %>% 
-#   datatable()
+raw_data2020 <- 
+  read_csv(
+    "http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2020.csv",
+    col_types = cols(.default = col_character()))
+
+raw_data <-
+  bind_rows(raw_data2019, raw_data2020)
+
 ```
 
 # Understanding the Data
@@ -112,20 +121,22 @@ data_clean <-
   anti_join(removed_rows %>% 
               select(-removal_reason)) %>% 
   # create some flag variables
-  mutate(IsMasked = ifelse(str_detect(SentFrom, "\\[*\\]"), T, F),
-         IsReply  = ifelse(str_detect(EmailSubject, "^R[E,e]:"), T, F),
-         FromCCM  = ifelse(str_detect(SentFrom, 
-                                      pattern = str_c(city_council_members, collapse = "|")),
-                           T,
-                           F),
-         ToCCM  = ifelse(str_detect(SentTo, 
-                             pattern =  str_c(city_council_members, collapse = "|")),
-                           T,
-                           F),
-         FromCO = ifelse(str_detect(SentFrom, 
-                             pattern =  str_c(city_officials, collapse = "|")),
-                           T,
-                           F)) %>% 
+  mutate(
+    IsMasked = ifelse(str_detect(SentFrom, "\\[*\\]"), T, F),
+    IsReply  = ifelse(str_detect(EmailSubject, "^R[E,e]:"), T, F),
+    FromCCM  = ifelse(str_detect(SentFrom, 
+                                 pattern = str_c(city_council_members, collapse = "|")),
+                      T,
+                      F),
+    ToCCM  = ifelse(str_detect(SentTo, 
+                               pattern =  str_c(city_council_members, collapse = "|")),
+                    T,
+                    F),
+    FromCO = ifelse(str_detect(SentFrom, 
+                               pattern =  str_c(city_officials, collapse = "|")),
+                    T,
+                    F)
+    ) %>% 
   # format strings
   mutate_at(vars(EmailSubject), str_to_lower) %>% 
   mutate(ReceivedDate = as_date(ReceivedDate)) 
@@ -175,7 +186,10 @@ frequency_email %>%
 As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)`.
 
 ## Dates of Emails
-Looking at the dates that emails get sent, it appears that there are outside triggers that incent people to send emails to the city council on certain days. Without looking at the calandar for city council sessions, it is a good guess that the days with the most email traffic are days prior and post city council sessions.
+Looking at the dates that emails get sent, it appears that there are outside triggers that incentive people to send emails to the city council on certain days. Without looking at the calandar for city council sessions, it is a good guess that the days with the most email traffic are days prior and post city council sessions.
+
+*edit* Since initially performing this analysis, the COVID-19 Pandemic has swept the globe and thrown data project everywhere, this included, into disarray. It is somewhat apparent that engagement has increased in a large way.
+
 ```{r}
 data_clean %>% 
   count(ReceivedDate) %>% 
@@ -196,25 +210,12 @@ data_clean %>%
 
 This is a bit low, I would expect more engagement since most emails are relatively unique and not campaigns by interest groups. Let's see what types of trends we can find based on when city officials reply.
 
-## Network Effects
-
-As there are a lot of people in the CC line of these emails, we can also see what the network looks like using some graph theory.
-
-```{r}
-  data_clean %>% 
-  select(SentFrom, SentTo) %>% 
-  separate_rows(SentTo, sep = ",") %>% 
-  filter(str_detect(SentTo, "\\[.*\\]")) %>% 
-  mutate(SentTo = str_trim(SentTo, side = "both")) %>% 
-  as_tbl_graph() %>% 
-  ggraph(layout = 'kk') +
-  geom_edge_link() +
-  geom_node_point() +
-  theme_light()
-```
-
 ## Email Duplicates
+
 People frequently copy paste an email in order to show more public awareness to an issue. We are checking by email subject for now. As expected, there are some movements in Boulder that coordinate the efforts through this email channel. Since people tend to sign their own name, we took the email subject to look for duplicates. This isn't perfect but does a good job at clearing out the vast majority.
+
+*Edit* Since performing this analysis, the largest movement towards racial equaility has begun. This significantly changes my initial findings.
+
 ```{r}
 
 data_clean %>% 
@@ -226,7 +227,8 @@ data_clean %>%
 
 ```
 
-We are starting to see some trends here. This is not conclusive, but gives us a good starting point for further analysis. There are a couple of notable trends. Mostly surounding Boulder's Open Space Mountain Parks, Bike Trails, Vaping, Homeless Shelters, and 5g:
+We are starting to see some trends here. This is not conclusive, but gives us a good starting point for further analysis. There are a couple of notable trends. Mostly surounding Boulder's Open Space Mountain Parks, Bike Trails, Vaping, Homeless Shelters, 5g, and very notably, Police Accountability:
+
 ```{r}
 data_clean %>% 
   filter(!IsReply) %>% 
@@ -266,23 +268,23 @@ tidy_phrases
 
 # Data Analysis
 ```{r}
-non_topics <- c("tinyurl.com", "http", "https", "email", "community", "dear", "city", "boulder", "council", "2", "2017", "2018", "2019")
+
 
 # create DTM with the cleaned data
-clean_dtm <- data_clean %>% 
-  unnest_tokens(output = tokenized_emails,
-                input  = PlainTextBody) %>% 
-  anti_join(stop_words, by = c("tokenized_emails" = "word")) %>% 
-  filter(!tokenized_emails %in% non_topics) %>% 
-  count(MessageIdentifier, tokenized_emails, sort = T) %>% 
-  cast_dtm(term = tokenized_emails, document = MessageIdentifier, value = n)
+clean_dfm <- data_clean %>% 
+  corpus(docid_field = 'MessageIdentifier',
+         text_field = 'PlainTextBody') %>% 
+  dfm(remove_punct = TRUE, remove = stopwords('en')) %>% 
+  dfm_trim(min_termfreq = 0.95, termfreq_type = "quantile", 
+           max_docfreq = 0.1, docfreq_type = "prop") %>% 
+  convert(to = "topicmodels")
+  
 
-
-k <- 5 #number of topics
+k <- 10 #number of topics
 seed = 1234 #necessary for reproducibility
 #fit the model passing the parameters discussed above
 #you could have more control parameters but will just use seed here
-lda <- LDA(clean_dtm, 
+lda <- LDA(clean_dfm, 
            k = k, 
            method = "GIBBS", 
            control = list(seed = seed))
@@ -318,13 +320,5 @@ top_terms_per_topic <- function(lda_model, num_words) {
 top_terms_per_topic(lda, num_words)
 ```
 
-## Open Space
 
-## Bike Trails
-
-## Vaping
-
-## Boulder Homeless Shelter
-
-## 5G Network
 
