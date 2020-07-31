@@ -9,19 +9,18 @@ output: html_document
 ```{r include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(tidygraph)
-library(ggraph)
 library(lubridate)
 library(tidytext)
 library(wordcloud)
 library(topicmodels)
 library(quanteda)
 library(plotly)
-library(DT)
 library(kableExtra) #create attractive tables
 library(ggrepel) #text and label geoms for ggplot2
-library(gridExtra)
 library(formattable)
+library(rsample)
+library(future)
+library(furrr)
 
 # functions
 getmode <- function(v) {
@@ -268,21 +267,94 @@ tidy_phrases
 For this iteration, we are using a simple "bag of words" approach using Latent Derichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods but does not conflate location in a string with significance. 
 
 ```{r}
-
-
 # create DTM with the cleaned data
 clean_dfm <- data_clean %>% 
+  mutate(PlainTextBody = str_replace_all(PlainTextBody, '\\[.+\\]', ' ')) %>% 
+  filter(!is.na(PlainTextBody)) %>% 
   corpus(docid_field = 'MessageIdentifier',
          text_field = 'PlainTextBody') %>% 
   dfm(tolower = TRUE, 
-      remove_punct = TRUE, remove_symbols = TRUE, remove_numbers = TRUE, 
+      stem = TRUE,
+      remove_punct = TRUE, 
+      remove_symbols = TRUE, 
+      remove_numbers = TRUE, 
       remove = stopwords('en')) %>% 
   dfm_trim(min_termfreq = 0.95, termfreq_type = "quantile", 
            max_docfreq = 0.1, docfreq_type = "prop") %>% 
   convert(to = "topicmodels")
+
+
+clean_unnest <- data_clean %>% 
+  sample_n(500) %>% 
+  unnest_tokens(word, PlainTextBody) %>% 
+  anti_join(stop_words, by = c("word")) %>% 
+  filter(!str_detect(word, '[0-9]+'),
+         !(word %in% c('http' , 'https', 'tinurl\\.com'))) %>% 
+  mutate(word_stemmed = SnowballC::wordStem(word, "english")) %>%
+  filter(!(word_stemmed %in% c('boulder', 'citi', 'council'))) %>% 
+  group_by(word_stemmed) %>% 
+  arrange(word) %>% 
+  mutate(word_cleaned = first(word)) %>% 
+  ungroup()
+
+
+clean_unnest %>% 
+  count(word_stemmed, sort = T)
+
+
+  
   
 
-k <- 10 #number of topics
+```
+
+Choose K by looking at perplexity plots
+
+```{r}
+plan('multicore')
+
+split_dat <- clean_unnest %>% 
+  count(word_stemmed, MessageIdentifier) %>% 
+  nest(-MessageIdentifier) %>% 
+  initial_split()
+
+train_lda <- function(k, dat) {
+  mod <- LDA(cast_dtm(training(dat) %>% 
+                        unnest(data), 
+                      term = word_stemmed,
+                      document = MessageIdentifier,
+                      value = n),
+             k = k, 
+             method = "GIBBS")
+  
+  perp <- perplexity(mod, 
+                     cast_dtm(testing(dat)%>% 
+                               unnest(data), 
+                             term = word_stemmed,
+                             document = MessageIdentifier,
+                             value = n))
+  
+  return(perp)
+}
+
+n_topics = seq(15, 80, by = 2)
+
+
+model_perplexities <- 
+  future_map(n_topics,
+    train_lda, 
+    dat = split_dat)
+
+
+
+ggplot() + 
+  aes(x = n_topics,
+      y = unlist(model_perplexities)) +
+  geom_point()
+```
+
+
+```{r}
+k <- 20 #number of topics
 seed = 1234 #necessary for reproducibility
 #fit the model passing the parameters discussed above
 #you could have more control parameters but will just use seed here
