@@ -9,19 +9,18 @@ output: html_document
 ```{r include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(tidygraph)
-library(ggraph)
 library(lubridate)
 library(tidytext)
 library(wordcloud)
 library(topicmodels)
 library(quanteda)
 library(plotly)
-library(DT)
 library(kableExtra) #create attractive tables
 library(ggrepel) #text and label geoms for ggplot2
-library(gridExtra)
 library(formattable)
+library(rsample)
+library(future)
+library(furrr)
 
 # functions
 getmode <- function(v) {
@@ -268,28 +267,101 @@ tidy_phrases
 For this iteration, we are using a simple "bag of words" approach using Latent Derichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods but does not conflate location in a string with significance. 
 
 ```{r}
-
-
 # create DTM with the cleaned data
 clean_dfm <- data_clean %>% 
+  mutate(PlainTextBody = str_replace_all(PlainTextBody, '\\[.+\\]', ' ')) %>% 
+  filter(!is.na(PlainTextBody)) %>% 
   corpus(docid_field = 'MessageIdentifier',
          text_field = 'PlainTextBody') %>% 
   dfm(tolower = TRUE, 
-      remove_punct = TRUE, remove_symbols = TRUE, remove_numbers = TRUE, 
+      stem = TRUE,
+      remove_punct = TRUE, 
+      remove_symbols = TRUE, 
+      remove_numbers = TRUE, 
       remove = stopwords('en')) %>% 
   dfm_trim(min_termfreq = 0.95, termfreq_type = "quantile", 
            max_docfreq = 0.1, docfreq_type = "prop") %>% 
   convert(to = "topicmodels")
+
+
+clean_unnest <- data_clean %>% 
+  sample_n(500) %>% 
+  unnest_tokens(word, PlainTextBody) %>% 
+  anti_join(stop_words, by = c("word")) %>% 
+  filter(!str_detect(word, '[0-9]+'),
+         !(word %in% c('http' , 'https', 'tinurl\\.com'))) %>% 
+  mutate(word_stemmed = SnowballC::wordStem(word, "english") ) %>%
+  filter(!(word_stemmed %in% c('boulder', 'citi', 'council'))) %>% 
+  group_by(word_stemmed) %>% 
+  arrange(word) %>% 
+  mutate(word_cleaned = first(word)) %>% 
+  ungroup() %>% 
+  count(word_cleaned, MessageIdentifier)
+
+
+  
   
 
-k <- 10 #number of topics
+```
+
+Choose K by looking at perplexity plots `r value`
+
+```{r}
+plan('multicore')
+
+split_dat <- clean_unnest %>% 
+  nest(-MessageIdentifier) %>% 
+  initial_split()
+
+train_lda <- function(k, dat) {
+  mod <- LDA(cast_dtm(training(dat) %>% 
+                        unnest(data), 
+                      term = word_stemmed,
+                      document = MessageIdentifier,
+                      value = n),
+             k = k, 
+             method = "GIBBS")
+  
+  perp <- perplexity(mod, 
+                     cast_dtm(testing(dat)%>% 
+                               unnest(data), 
+                             term = word_stemmed,
+                             document = MessageIdentifier,
+                             value = n))
+  
+  return(perp)
+}
+
+n_topics = seq(15, 80, by = 2)
+
+
+model_perplexities <- 
+  future_map(n_topics,
+    train_lda, 
+    dat = split_dat)
+
+
+
+ggplot() + 
+  aes(x = n_topics,
+      y = unlist(model_perplexities)) +
+  geom_point()
+```
+
+
+```{r}
+k <- 40 #number of topics
 seed = 1234 #necessary for reproducibility
 #fit the model passing the parameters discussed above
 #you could have more control parameters but will just use seed here
-lda <- LDA(clean_dfm, 
-           k = k, 
-           method = "GIBBS", 
-           control = list(seed = seed))
+lda <-
+  clean_unnest %>% 
+  cast_dtm(document = MessageIdentifier,
+           term = word_cleaned,
+           value = n) %>% 
+  LDA(k = k, 
+      method = "GIBBS", 
+      control = list(seed = seed))
 
 
 
@@ -314,9 +386,11 @@ top_terms_per_topic <- function(lda_model, num_words) {
   #add the word Topic to the topic labels
   mutate(topic = paste("Topic", topic, sep = " "))
   #create a title to pass to word_chart
-  title <- paste("LDA Top Terms for", k, "Topics")
-  #call the word_chart function you built in prep work
-  word_chart(top_terms, top_terms$term, title)
+  # title <- paste("LDA Top Terms for", k, "Topics")
+  # #call the word_chart function you built in prep work
+  # word_chart(top_terms, top_terms$term, title)
+  
+  return(top_terms)
 }
 #
 top_terms_per_topic(lda, num_words)
@@ -326,12 +400,20 @@ top_terms_per_topic(lda, num_words)
 
 ```{r}
 topic_designation <- 
-  topics(lda) %>% 
-  tibble(id = names(.),
-         topic = .)
+  tidy(lda, 'gamma') 
+
+
+topic_words <- 
+  tidy(lda, 'beta') %>% 
+  arrange(desc(beta))
+# topic_designation %>% 
+#   filter(document == unique(.$document)[5007]) %>% 
+#   plot_ly() %>% 
+#   add_pie(values = ~gamma,
+#           labels = ~ topic)
 
 emails_topics <- data_clean %>% 
-  left_join(topic_designation, by = c('MessageIdentifier' = 'id'))
+  left_join(topic_designation, by = c('MessageIdentifier' = 'document'))
 ```
 
 # Plot topics overtime
@@ -340,6 +422,8 @@ With the unrest in 2020, it is likely that topics were assigned with temporal co
 
 ```{r}
 emails_topics %>% 
+  group_by(MessageIdentifier) %>% 
+  filter(gamma == max(gamma)) %>% 
   mutate(topic = paste("Topic", 
                        topic)) %>% 
   ggplot() +
