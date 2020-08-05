@@ -298,13 +298,9 @@ clean_unnest <- data_clean %>%
   ungroup() %>% 
   count(word_cleaned, MessageIdentifier)
 
-
-  
-  
-
 ```
 
-Choose K by looking at perplexity plots `r value`
+Choose K by looking at perplexity plots
 
 ```{r}
 plan('multicore')
@@ -340,8 +336,6 @@ model_perplexities <-
     train_lda, 
     dat = split_dat)
 
-
-
 ggplot() + 
   aes(x = n_topics,
       y = unlist(model_perplexities)) +
@@ -351,6 +345,7 @@ ggplot() +
 
 ```{r}
 k <- 40 #number of topics
+
 seed = 1234 #necessary for reproducibility
 #fit the model passing the parameters discussed above
 #you could have more control parameters but will just use seed here

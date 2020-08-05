@@ -109,6 +109,7 @@ server <- function(input, output) {
     })
 
     output$ts_density = renderPlotly({
+
         tmp <- inDatTop() %>%
             filter(topic %in% input$topics_filter) %>%
             ggplot() +
@@ -163,6 +164,7 @@ server <- function(input, output) {
             add_pie(values = ~gamma, labels = ~topic)
         } 
     })
+
     
 }
 
