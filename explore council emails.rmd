@@ -285,7 +285,7 @@ clean_dfm <- data_clean %>%
 
 
 clean_unnest <- data_clean %>% 
-  sample_n(500) %>% 
+  sample_n(5000) %>% 
   unnest_tokens(word, PlainTextBody) %>% 
   anti_join(stop_words, by = c("word")) %>% 
   filter(!str_detect(word, '[0-9]+'),
@@ -298,7 +298,7 @@ clean_unnest <- data_clean %>%
   ungroup() %>% 
   count(word_cleaned, MessageIdentifier)
 
-```
+ ```
 
 Choose K by looking at perplexity plots
 
@@ -312,7 +312,7 @@ split_dat <- clean_unnest %>%
 train_lda <- function(k, dat) {
   mod <- LDA(cast_dtm(training(dat) %>% 
                         unnest(data), 
-                      term = word_stemmed,
+                      term = word_cleaned,
                       document = MessageIdentifier,
                       value = n),
              k = k, 
@@ -321,7 +321,7 @@ train_lda <- function(k, dat) {
   perp <- perplexity(mod, 
                      cast_dtm(testing(dat)%>% 
                                unnest(data), 
-                             term = word_stemmed,
+                             term = word_cleaned,
                              document = MessageIdentifier,
                              value = n))
   
