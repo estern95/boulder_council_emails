@@ -9,11 +9,13 @@
 
 library(shiny)
 library(shinythemes)
+library(forcats)
 library(htmltools)
 library(plotly)
 library(topicmodels)
 library(tidytext)
 library(broom)
+library(dplyr)
 library(DT)
 library(purrr)
 library(ggrepel) #text and label geoms for ggplot2
@@ -51,7 +53,7 @@ ui <- fluidPage(
     title = "What Are Boulderites Interested In?",
     tabsetPanel(
         tabPanel('Boulder City Council Emails',
-                 includeMarkdown('../README.md')),
+                 includeMarkdown('intro.md')),
         tabPanel('Dashboard',
                  fluidPage(
                      sidebarLayout(

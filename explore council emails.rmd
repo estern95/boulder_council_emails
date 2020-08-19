@@ -285,7 +285,7 @@ clean_dfm <- data_clean %>%
 
 
 clean_unnest <- data_clean %>% 
-  sample_n(5000) %>% 
+  #sample_n(5000) %>% 
   unnest_tokens(word, PlainTextBody) %>% 
   anti_join(stop_words, by = c("word")) %>% 
   filter(!str_detect(word, '[0-9]+'),
@@ -298,7 +298,7 @@ clean_unnest <- data_clean %>%
   ungroup() %>% 
   count(word_cleaned, MessageIdentifier)
 
- ```
+```
 
 Choose K by looking at perplexity plots
 
@@ -342,9 +342,10 @@ ggplot() +
   geom_point()
 ```
 
+The perplexity plots I built showed that 40 topics has the best fit. This makes sense to me but is very hard to delineate and build a narrative around. Since we have no clear topics in mind, reducing that number will help down the road.
 
 ```{r}
-k <- 40 #number of topics
+k <- 30 #number of topics
 
 seed = 1234 #necessary for reproducibility
 #fit the model passing the parameters discussed above
