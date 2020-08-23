@@ -1,10 +1,8 @@
 #
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
+# Ideas,
+# - change plot colors
+# - Maybe add annotations for council meetings by scraping webpage?
+# - make plotly filter by dragging time series plot
 #
 
 library(shiny)
@@ -47,34 +45,36 @@ top_terms <- tidy(topic_model, 'beta') %>%
    
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-    #theme = shinytheme('darkly'),
+ui <- navbarPage(
+    theme = shinytheme('united'),
+    inverse = TRUE,
     # Application title
     title = "What Are Boulderites Interested In?",
-    tabsetPanel(
-        tabPanel('Boulder City Council Emails',
-                 includeMarkdown('intro.md')),
-        tabPanel('Dashboard',
-                 fluidPage(
-                     sidebarLayout(
-                         sidebarPanel(
-                             selectizeInput('topics_filter', 'Choose Topic/s',
-                                            choices = unique(in_dat$topic),
-                                            multiple = FALSE),
-                             plotlyOutput('topic_words')),
-                         mainPanel(plotlyOutput('ts_density'))
-                     ),
-                     DTOutput('mailbox'),
-                     fluidRow(
-                         column(6, uiOutput('email')),
-                         column(6, plotlyOutput('topic_designation'))
-                     )
+    tabPanel('Boulder City Council Emails',
+             includeMarkdown('intro.md')),
+    tabPanel('Dashboard',
+             fluidPage(
+                 sidebarLayout(
+                     sidebarPanel(
+                         selectizeInput('topics_filter', 'Choose Topic/s',
+                                        choices = unique(in_dat$topic),
+                                        multiple = FALSE),
+                         plotlyOutput('topic_words'),
+                         dateRangeInput('dates', 'Select Date:',
+                                        start = '2018-01-01',
+                                        end = max(in_dat$ReceivedDate))),
+                     mainPanel(plotlyOutput('ts_density'))
+                 ),
+                 DTOutput('mailbox'),
+                 fluidRow(
+                     column(6, uiOutput('email')),
+                     column(6, plotlyOutput('topic_designation'))
                  )
-        ),
-        tabPanel('Methods',
-                 includeMarkdown('method.md')),
-        tabPanel('Contact')
-    )
+             )
+    ),
+    tabPanel('Methods',
+             includeMarkdown('method.md')),
+    tabPanel('Contact')
 )
 
 # Define server logic required to draw a histogram
@@ -127,7 +127,7 @@ server <- function(input, output) {
     
     output$mailbox = renderDT({
         inDatTop() %>% 
-            select(Topic = topic, SentTo, ReceivedDate, EmailSubject) %>% 
+            select(Topic = topic, ReceivedDate, EmailSubject) %>% 
             DT::datatable(selection = 'single') %>%
             formatStyle(
                 columns = c(1:4),

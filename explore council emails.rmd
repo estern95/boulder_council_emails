@@ -135,7 +135,8 @@ data_clean <-
     ) %>% 
   # format strings
   mutate_at(vars(EmailSubject), str_to_lower) %>% 
-  mutate(ReceivedDate = as_date(ReceivedDate)) 
+  mutate(ReceivedDate = as_date(ReceivedDate),
+         full_email = paste(EmailSubject, PlainTextBody)) # include subject as not all emails reiterate their subject in the body. 
   
 
 
@@ -268,25 +269,25 @@ For this iteration, we are using a simple "bag of words" approach using Latent D
 
 ```{r}
 # create DTM with the cleaned data
-clean_dfm <- data_clean %>% 
-  mutate(PlainTextBody = str_replace_all(PlainTextBody, '\\[.+\\]', ' ')) %>% 
-  filter(!is.na(PlainTextBody)) %>% 
-  corpus(docid_field = 'MessageIdentifier',
-         text_field = 'PlainTextBody') %>% 
-  dfm(tolower = TRUE, 
-      stem = TRUE,
-      remove_punct = TRUE, 
-      remove_symbols = TRUE, 
-      remove_numbers = TRUE, 
-      remove = stopwords('en')) %>% 
-  dfm_trim(min_termfreq = 0.95, termfreq_type = "quantile", 
-           max_docfreq = 0.1, docfreq_type = "prop") %>% 
-  convert(to = "topicmodels")
+# clean_dfm <- data_clean %>% 
+#   mutate(PlainTextBody = str_replace_all(PlainTextBody, '\\[.+\\]', ' ')) %>% 
+#   filter(!is.na(PlainTextBody)) %>% 
+#   corpus(docid_field = 'MessageIdentifier',
+#          text_field = 'PlainTextBody') %>% 
+#   dfm(tolower = TRUE, 
+#       stem = TRUE,
+#       remove_punct = TRUE, 
+#       remove_symbols = TRUE, 
+#       remove_numbers = TRUE, 
+#       remove = stopwords('en')) %>% 
+#   dfm_trim(min_termfreq = 0.95, termfreq_type = "quantile", 
+#            max_docfreq = 0.1, docfreq_type = "prop") %>% 
+#   convert(to = "topicmodels")
 
 
 clean_unnest <- data_clean %>% 
   #sample_n(5000) %>% 
-  unnest_tokens(word, PlainTextBody) %>% 
+  unnest_tokens(word, full_email) %>% 
   anti_join(stop_words, by = c("word")) %>% 
   filter(!str_detect(word, '[0-9]+'),
          !(word %in% c('http' , 'https', 'tinurl\\.com'))) %>% 
@@ -307,6 +308,7 @@ plan('multicore')
 
 split_dat <- clean_unnest %>% 
   nest(-MessageIdentifier) %>% 
+  sample_n(100) %>% 
   initial_split()
 
 train_lda <- function(k, dat) {
@@ -328,7 +330,7 @@ train_lda <- function(k, dat) {
   return(perp)
 }
 
-n_topics = seq(15, 80, by = 2)
+n_topics = seq(15, 45, by = 2)
 
 
 model_perplexities <- 
