@@ -265,7 +265,7 @@ tidy_phrases
 
 # Text Analysis
 
-For this iteration, we are using a simple "bag of words" approach using Latent Derichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods but does not conflate location in a string with significance. 
+For this iteration, we are using a simple "bag of words" approach using Latent Derichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods. Like other bag of words approaches, the model does not conflate location in a string with significance and is purely based off of frequency. 
 
 ```{r}
 # create DTM with the cleaned data
@@ -284,13 +284,17 @@ For this iteration, we are using a simple "bag of words" approach using Latent D
 #            max_docfreq = 0.1, docfreq_type = "prop") %>% 
 #   convert(to = "topicmodels")
 
+# oddities <- data_clean %>% 
+#   unnest_tokens(word, full_email) %>% 
+#   filter(!str_detect(word, '[0-9,a-z]+'))
 
 clean_unnest <- data_clean %>% 
   #sample_n(5000) %>% 
   unnest_tokens(word, full_email) %>% 
   anti_join(stop_words, by = c("word")) %>% 
   filter(!str_detect(word, '[0-9]+'),
-         !(word %in% c('http' , 'https', 'tinurl\\.com'))) %>% 
+         !(word %in% c('http' , 'https', 'tinurl\\.com')),
+         str_detect(word, '[a-z]+')) %>% # have some issues with non-ASCII charachters causing problems
   mutate(word_stemmed = SnowballC::wordStem(word, "english") ) %>%
   filter(!(word_stemmed %in% c('boulder', 'citi', 'council'))) %>% 
   group_by(word_stemmed) %>% 
@@ -303,7 +307,7 @@ clean_unnest <- data_clean %>%
 
 Choose K by looking at perplexity plots
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 plan('multicore')
 
 split_dat <- clean_unnest %>% 
@@ -344,7 +348,7 @@ ggplot() +
   geom_point()
 ```
 
-The perplexity plots I built showed that 40 topics has the best fit. This makes sense to me but is very hard to delineate and build a narrative around. Since we have no clear topics in mind, reducing that number will help down the road.
+The perplexity plots I built showed that 35-45 topics has the best fit. This is similar to an 'elbow plot' we would make if using K-means or other unsupervised approaches. Ideally we would choose a topic based on a known understanding of the data, but since it isn't always as clear, we pick N where the curve starts to flatten. 35 topics makes sense as there are a lot of issues and they are changing over time. However this is very hard to build a story around. Since we have no clear topics in mind, reducing that number will help down the road.
 
 ```{r}
 k <- 30 #number of topics
@@ -409,9 +413,19 @@ topic_words <-
 #   plot_ly() %>% 
 #   add_pie(values = ~gamma,
 #           labels = ~ topic)
+topic_labels <- topic_words %>% 
+  group_by(topic) %>% 
+  filter(beta == max(beta)) %>% 
+  mutate(term = str_to_title(term)) %>% 
+  ungroup()
+
 
 emails_topics <- data_clean %>% 
-  left_join(topic_designation, by = c('MessageIdentifier' = 'document'))
+  left_join(topic_designation,
+            by = c('MessageIdentifier' = 'document')) %>% 
+  left_join(topic_labels, by = 'topic')
+
+
 ```
 
 # Plot topics overtime
