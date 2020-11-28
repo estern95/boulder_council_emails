@@ -289,18 +289,12 @@ For this iteration, we are using a simple "bag of words" approach using Latent D
 #   filter(!str_detect(word, '[0-9,a-z]+'))
 
 clean_unnest <- data_clean %>% 
-  #sample_n(5000) %>% 
   unnest_tokens(word, full_email) %>% 
   anti_join(stop_words, by = c("word")) %>% 
   filter(!str_detect(word, '[0-9]+'),
          !(word %in% c('http' , 'https', 'tinurl\\.com')),
-         str_detect(word, '[a-z]+')) %>% # have some issues with non-ASCII charachters causing problems
-  mutate(word_stemmed = SnowballC::wordStem(word, "english") ) %>%
-  filter(!(word_stemmed %in% c('boulder', 'citi', 'council'))) %>% 
-  group_by(word_stemmed) %>% 
-  arrange(word) %>% 
-  mutate(word_cleaned = first(word)) %>% 
-  ungroup() %>% 
+         str_detect(word, '[a-z]+')) %>% # have some issues with non-ASCII characters causing problems
+  mutate(word_cleaned = textstem::lemmatize_words(word)) %>%
   count(word_cleaned, MessageIdentifier)
 
 ```
@@ -348,7 +342,7 @@ ggplot() +
   geom_point()
 ```
 
-The perplexity plots I built showed that 35-45 topics has the best fit. This is similar to an 'elbow plot' we would make if using K-means or other unsupervised approaches. Ideally we would choose a topic based on a known understanding of the data, but since it isn't always as clear, we pick N where the curve starts to flatten. 35 topics makes sense as there are a lot of issues and they are changing over time. However this is very hard to build a story around. Since we have no clear topics in mind, reducing that number will help down the road.
+The perplexity plots I built showed that 35-45 topics has the best fit. This is similar to an 'elbow plot' we would make if using K-means or other unsupervised approaches. Ideally we would choose a topic based on a known understanding of the data, but since it isn't always as clear, we pick N where the curve starts to flatten. 30 to 40 topics makes sense as there are a lot of issues and they are changing over time. However this is very hard to build a story around. Since we have no clear topics in mind, reducing that number will help down the road.
 
 ```{r}
 k <- 30 #number of topics
