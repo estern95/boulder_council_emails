@@ -2,7 +2,7 @@
 title: "What do Boulderites Care About?"
 subtitle: "An Exploratory Analysis into City Council Emails"
 author: "Eric Stern"
-date: "7/7/2020"
+date: "7/7/2021"
 output: html_document
 ---
 
@@ -61,31 +61,36 @@ word_chart <- function(data, input, title) {
 ```
 
 # About the Data
-This is data that the city of Boulder keeps open to the public. They maintain ~30 data sets for various different areas of interest such as crime, homelessness, and city affairs. This analysis is leveraging the data set, [2019 Council Emails Dataset](https://bouldercolorado.gov/open-data/emails-to-boulder-city-council/):
 
->Data set containing 2019 emails to council@bouldercolorado.gov. This version works best for viewing in Excel, as it includes only the plain text version of the emails. This file is updated daily with new emails.
+This is data that the city of Boulder keeps open to the public. They maintain \~30 data sets for various different areas of interest such as crime, homelessness, and city affairs. This analysis is leveraging the data set, [2019 Council Emails Dataset](https://bouldercolorado.gov/open-data/emails-to-boulder-city-council/):
+
+> Data set containing 2019 emails to [council\@bouldercolorado.gov](mailto:council@bouldercolorado.gov){.email}. This version works best for viewing in Excel, as it includes only the plain text version of the emails. This file is updated daily with new emails.
 
 ```{r}
-raw_data2019 <- 
+raw <- list()
+raw$emails_2019 <- 
   read_csv(
     "http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2019.csv",
     col_types = cols(.default = col_character()))
 
-raw_data2020 <- 
+raw$emails_2020 <- 
   read_csv(
     "http://www-static.bouldercolorado.gov/docs/opendata/CouncilEmails_PlainText2020.csv",
     col_types = cols(.default = col_character()))
 
 raw_data <-
-  bind_rows(raw_data2019, raw_data2020)
+  bind_rows(raw)
 
 ```
 
 # Understanding the Data
-This data set has the following columns : `r names(raw_data)`. They are relatively self explanatory. One item to note is that all emails included in this data set are sent to council@bouldercolorado.gov. They may also be sent to others such as boulderplanningboard or specific city council members.
+
+This data set has the following columns : `r names(raw_data)`. They are relatively self explanatory. One item to note is that all emails included in this data set are sent to [council\@bouldercolorado.gov](mailto:council@bouldercolorado.gov){.email}. They may also be sent to others such as boulderplanningboard or specific city council members.
 
 # Data Cleaning
+
 These data are a little messy. Not bad in the grand scheme of data messiness but we need to remove some junk if we want any reasonable results. I have created a table of what I removed and why:
+
 ```{r}
 removed <- 
   list()
@@ -147,12 +152,14 @@ removed_rows %>%
   format_table()
 ```
 
+## Metadata
 
-## Metadata 
 The meat of this data set is the plain email text body. We'll get to that later. First, let's look at the meta data about whose sending the emails and when they are sending them.
 
 ### Senders
+
 My hypothesis is that there aren't too many unique senders. Unfortunately public engagement is low in general. As expected, we see a small handful having set the majority of emails. As a note, the largest correspondent is the spokesperson for the Boulder police department.
+
 ```{r}
 frequency_email <- data_clean %>% 
   count(SentFrom, FromCCM, FromCO) %>% 
@@ -167,6 +174,7 @@ frequency_email %>%
 ```
 
 If we look at some descriptive statistics about whose sending emails and their frequency, we get the following:
+
 ```{r}
 
 
@@ -183,9 +191,10 @@ frequency_email %>%
 As expected, this is a very skewed distribution with most only sending one email and one individual having sent `r pluck(summarise(frequency_email, max = max(n)), 1)`.
 
 ## Dates of Emails
+
 Looking at the dates that emails get sent, it appears that there are outside triggers that incentive people to send emails to the city council on certain days. Without looking at the calendar for city council sessions, it is a good guess that the days with the most email traffic are days prior and post city council sessions.
 
-*edit* Since initially performing this analysis, the COVID-19 Pandemic has swept the globe and thrown data project everywhere, this included, into disarray. It is somewhat apparent that engagement has increased in a large way.
+*edit* Since initially performing this analysis, the COVID-19 Pandemic has swept the globe and thrown data projects everywhere into disarray. It is somewhat apparent that engagement has increased in a large way.
 
 ```{r}
 data_clean %>% 
@@ -195,6 +204,7 @@ data_clean %>%
 ```
 
 ## Council and City Officials Engagement
+
 Based on reply signs in the email subject, we can also see how engaged the council or city officials are with constituents:
 
 ```{r}
@@ -238,6 +248,7 @@ data_clean %>%
 This is a good start. Let's first bin the emails into categories by extracting common phrases
 
 ## Find most commons words and phrases
+
 ```{r}
 tidy_text <- data_clean %>% 
   unnest_tokens(word, EmailSubject) %>% 
@@ -262,10 +273,9 @@ tidy_phrases <-
 tidy_phrases
 ```
 
-
 # Text Analysis
 
-For this iteration, we are using a simple "bag of words" approach using Latent Derichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods. Like other bag of words approaches, the model does not conflate location in a string with significance and is purely based off of frequency. 
+For this iteration, we are using a simple "bag of words" approach using Latent Dirichlet Allocation. This is a relatively simplistic language model that builds off of other Bayesian methods. Like other bag of words approaches, the model does not conflate location in a string with significance and is purely based off of frequency.
 
 ```{r}
 # create DTM with the cleaned data
@@ -328,13 +338,14 @@ train_lda <- function(k, dat) {
   return(perp)
 }
 
-n_topics = seq(15, 45, by = 2)
+n_topics = seq(10, 60, by = 2)
 
 
 model_perplexities <- 
   future_map(n_topics,
     train_lda, 
-    dat = split_dat)
+    dat = split_dat,
+    .options = furrr_options(seed = TRUE))
 
 ggplot() + 
   aes(x = n_topics,
@@ -445,4 +456,3 @@ write_rds(emails_topics,
 write_rds(lda,
           'local_politics/topic_model.rds')
 ```
-
