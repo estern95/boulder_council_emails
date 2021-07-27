@@ -2,6 +2,10 @@
 
 In the current world of 2020, local politics are more important than ever. Unfortunately, with the continual degredation of local new sources and the increase attention of national politics, a lot of important local measure get ignored. This is a very unfortunate trend. As it means that those who have the local politicians ears are not always a representative sample of the population. 
 
+# 2021 Update:
+
+Unfortunately, the City of Boulder stopped maintaining the database and this project is deceased.
+
 ## City Council Mailbox
 
 I currently live in Boulder, Colorado working as a data scientist in clean energy. Boulder has a very eclectic population leading to a lot of different and sometimes perplexing opinions regarding local politics. One view into this world is through the publicly availible city council mailbox. All emails sent to and from this address are anonymized and stored nightly to a csv file by year. The goal of this project is to A) Understand how local constituents interact with their politicians, and B) Organize this data in a way that make accessing it easier.
